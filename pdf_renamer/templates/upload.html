@@ -7,11 +7,8 @@
     <style>
       body {
         font-family: Arial, sans-serif;
-        max-width: 800px;
-        margin: 0 auto;
-        padding: 2rem;
-        background-color: #f8f9fa;
-        /* Set invoice graveyard image as background */
+        margin: 0;
+        padding: 0;
         background-image: url('/static/invoice_graveyard.png');
         background-size: cover;
         background-position: center bottom;
@@ -20,14 +17,19 @@
       h1 {
         margin-bottom: 1rem;
       }
-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-    
-  
+      .card {
+        background-color: #ffffff;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        max-width: 600px;
+        margin: 6rem auto;
+      }
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
       input[type="file"] {
         padding: 0.5rem;
         border: 1px solid #ced4da;
@@ -52,33 +54,19 @@ form {
         border-radius: 0.5rem;
         margin-bottom: 1rem;
         color: #0f5132;
-     
-   .card {
-    background-color: rgba(255, 255, 255, 0.95);
-    padding: 2rem;
-    border-radius: 0.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    max-width: 600px;
-    margin: 4rem auto;
-}
-
-
-}
+      }
     </style>
   </head>
   <body>
-   <div class="card">
-    <h1>Upload PDF Invoices</h1>
-    <div class="message">
-      As your PDFs are being renamed, please take a moment to remember how great Justin is!
+    <div class="card">
+      <h1>Upload PDF Invoices</h1>
+      <div class="message">
+        As your PDFs are being renamed, please take a moment to remember how great Justin is!
+      </div>
+      <form method="post" action="/upload" enctype="multipart/form-data">
+        <input type="file" name="files" accept="application/pdf" multiple required>
+        <button type="submit">Upload and Rename</button>
+      </form>
     </div>
-    <form method="post" action="/upload" enctype="multipart/form-data">
-      <input type="file" name="files" accept="application/pdf" multiple required>
-      <button type="submit">Upload and Rename</button>
-    </form>
-  
-     </div>
-
-
   </body>
 </html>
