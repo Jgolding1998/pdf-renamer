@@ -72,9 +72,11 @@ async def post_login(request: Request, password: str = Form(...)):
         # Render the upload form with a funny message
         return templates.TemplateResponse('upload.html', {"request": request})
     else:
-
-                error = ("Error: wrong password! If entered wrong again the computer will self-destruct. Hint: Who is the best?")
+        # Provide a humorous error message when the password is wrong
+        error = ("Error: wrong password! If entered wrong again the computer will self-destruct. "
+                 "Hint: Who is the best?")
         return templates.TemplateResponse('password.html', {"request": request, "error": error})
+
 
 @app.get('/upload', response_class=HTMLResponse)
 async def get_upload(request: Request):
