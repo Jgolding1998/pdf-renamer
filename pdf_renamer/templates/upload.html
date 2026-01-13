@@ -6,13 +6,15 @@
     <title>Upload Invoices – PDF Renamer</title>
     <style>
       body {
+        /* Use 100vh so the background covers the full viewport height */
         font-family: Arial, sans-serif;
         margin: 0;
         padding: 0;
+        height: 100vh;
         background-image: url('/static/invoice_graveyard.png');
         background-size: cover;
-            min-height: 100vh;
-        background-position: center bottom;
+        /* Center the background image so it fills the page without leaving white space */
+        background-position: center;
         background-repeat: no-repeat;
       }
       h1 {
