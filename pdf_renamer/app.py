@@ -22,6 +22,10 @@ templates = Jinja2Templates(directory=str(BASE_DIR / 'templates'))
 # Regular expression for extracting customer number
 CUST_REGEX = re.compile(r'Customer\s+No\s*[:#]?\s*([A-Za-z0-9]+)', re.IGNORECASE)
 
+# Regular expression for extracting invoice number. Match "Invoice" followed by digits,
+# but avoid matches for "Invoice Date" or "Invoice To" by using a negative lookahead.
+INV_REGEX = re.compile(r'Invoice\s+(?!Date|To)(\d+)', re.IGNORECASE)
+
 # Simple password required to access the uploader
 SECRET_PASSWORD = "Justin is the best"
 
@@ -45,6 +49,28 @@ def extract_customer_number_from_pdf_bytes(data: bytes) -> Optional[str]:
             continue
 
     match = CUST_REGEX.search(full_text)
+    return match.group(1).strip() if match else None
+
+
+def extract_invoice_number_from_pdf_bytes(data: bytes) -> Optional[str]:
+    """
+    Given PDF data in bytes, extract the invoice number using PyMuPDF. This looks
+    for the word "Invoice" followed by a series of digits, but skips phrases like
+    "Invoice Date" or "Invoice To" to avoid false positives. Returns the invoice
+    number string if found, otherwise None.
+    """
+    try:
+        doc = fitz.open(stream=data, filetype='pdf')
+    except Exception as exc:
+        print(f"Failed to open PDF for invoice extraction: {exc}")
+        return None
+    full_text = ""
+    for page in doc:
+        try:
+            full_text += page.get_text()
+        except Exception:
+            continue
+    match = INV_REGEX.search(full_text)
     return match.group(1).strip() if match else None
 
 
@@ -108,6 +134,34 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
                 base_name = os.path.splitext(uploaded.filename or 'invoice')[0]
                 new_name = f"CTI-{sanitize_name(base_name)}.pdf"
             # Write to zip
+            zf.writestr(new_name, data)
+
+    memory_file.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    zip_name = f"renamed_invoices_{timestamp}.zip"
+    headers = {
+        'Content-Disposition': f'attachment; filename="{zip_name}"'
+    }
+    return StreamingResponse(memory_file, media_type='application/x-zip-compressed', headers=headers)
+
+
+# New endpoint for renaming by invoice number
+@app.post('/upload_invoice')
+async def upload_files_invoice(request: Request, files: List[UploadFile] = File(...)):
+    """
+    Handle uploaded PDF files, extract invoice numbers, and return a zip file
+    containing renamed PDFs using the invoice number.
+    """
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+        for uploaded in files:
+            data = await uploaded.read()
+            inv_num = extract_invoice_number_from_pdf_bytes(data)
+            if inv_num:
+                new_name = f"CTI-{inv_num}.pdf"
+            else:
+                base_name = os.path.splitext(uploaded.filename or 'invoice')[0]
+                new_name = f"CTI-{sanitize_name(base_name)}.pdf"
             zf.writestr(new_name, data)
 
     memory_file.seek(0)
