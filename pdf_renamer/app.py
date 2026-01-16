@@ -1,5 +1,4 @@
 import io
-import os
 import re
 import zipfile
 from datetime import datetime
@@ -12,187 +11,207 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
-# Initialize FastAPI app
+# =========================
+# APP SETUP
+# =========================
+
 app = FastAPI()
 
-# Set up template directory
-templates_dir = Path(__file__).parent / "templates"
-templates = Jinja2Templates(directory=str(templates_dir))
+BASE_DIR = Path(__file__).parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-# Regular expressions for customer and invoice numbers
-CUST_REGEX = re.compile(r"Customer\s*(?:No\s*[:#]?\s*|Number\s*[:\s]*)\s*([A-Za-z0-9\-]+)", re.IGNORECASE)
-INV_REGEX = re.compile(r"Invoice\s*(?:No\s*[:#]?\s*|Number\s*[:\s]*)\s*([A-Za-z0-9\-]+)", re.IGNORECASE)
-# Fallback regex to find SO or SV style order numbers anywhere in the text
-ORDER_FALLBACK_REGEX = re.compile(r"\b(?:SO|SV)[A-Za-z0-9]+\b", re.IGNORECASE)
-
-# Simple password required to access the uploader
 SECRET_PASSWORD = "Justin is the best"
 
-def extract_customer_number_from_pdf_bytes(data: bytes) -> Optional[str]:
-    """Extract a customer number from PDF bytes."""
-    try:
-        doc = fitz.open(stream=data, filetype='pdf')
-    except Exception as exc:
-        print(f"Failed to open PDF: {exc}")
-        return None
-    full_text = ""
-    for page in doc:
-        try:
-            full_text += page.get_text()
-        except Exception:
-            continue
-    match = CUST_REGEX.search(full_text)
-    return match.group(1).strip() if match else None
+# =========================
+# HELPERS
+# =========================
 
-def extract_invoice_number_from_pdf_bytes(data: bytes) -> Optional[str]:
-    """Extract an invoice number from PDF bytes."""
-    try:
-        doc = fitz.open(stream=data, filetype='pdf')
-    except Exception as exc:
-        print(f"Failed to open PDF for invoice extraction: {exc}")
-        return None
-    full_text = ""
-    for page in doc:
-        try:
-            full_text += page.get_text()
-        except Exception:
-            continue
-    match = INV_REGEX.search(full_text)
-    return match.group(1).strip() if match else None
+def sanitize_filename(name: str) -> str:
+    """
+    Remove only characters illegal in filenames.
+    KEEP spaces, dashes, and dots.
+    """
+    return re.sub(r'[<>:"/\\|?*]', '', name).strip()
 
-def extract_sales_order_details_from_pdf_bytes(data: bytes) -> Tuple[Optional[str], Optional[str]]:
-    """Extract sales order number and ship-to name from PDF bytes."""
-    order_num: Optional[str] = None
-    ship_name: Optional[str] = None
-    try:
-        doc = fitz.open(stream=data, filetype='pdf')
-    except Exception as exc:
-        print(f"Failed to open PDF for sales order extraction: {exc}")
-        return None, None
+
+# =========================
+# CUSTOMER / INVOICE
+# =========================
+
+CUST_REGEX = re.compile(
+    r"Customer\s*(?:No|Number)?\s*[:#]?\s*([A-Za-z0-9\-]+)",
+    re.IGNORECASE,
+)
+
+INV_REGEX = re.compile(
+    r"Invoice\s*(?:No|Number)?\s*[:#]?\s*([A-Za-z0-9\-]+)",
+    re.IGNORECASE,
+)
+
+
+def extract_customer_number(pdf_bytes: bytes) -> Optional[str]:
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    text = "".join(page.get_text() for page in doc)
+    m = CUST_REGEX.search(text)
+    return m.group(1).strip() if m else None
+
+
+def extract_invoice_number(pdf_bytes: bytes) -> Optional[str]:
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    text = "".join(page.get_text() for page in doc)
+    m = INV_REGEX.search(text)
+    return m.group(1).strip() if m else None
+
+
+# =========================
+# SALES ORDER EXTRACTION
+# =========================
+
+def extract_sales_order_info(pdf_bytes: bytes) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Extract:
+    - Order Number (SV / SO)
+    - Ship To name (FIRST LINE ONLY)
+    """
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     lines: List[str] = []
-    for page in doc:
-        try:
-            text = page.get_text()
-            if text:
-                lines.extend(text.splitlines())
-        except Exception:
-            continue
-    for idx, line in enumerate(lines):
-        if order_num is None:
-            m = re.search(r"Order\s*Number\s*[:\s]*([A-Za-z0-9\-]+)", line, re.IGNORECASE)
-            if not m:
-                m = re.search(r"Sales\s*Order\s*[:\s]*([A-Za-z0-9\-]+)", line, re.IGNORECASE)
-            if not m:
-                m = re.search(r"\b(?:SO|SV)[A-Za-z0-9]+\b", line, re.IGNORECASE)
-                if m:
-                    order_num = m.group(0).strip()
-            else:
-                order_num = m.group(1).strip()
-        if ship_name is None:
-            ship_match = re.match(r"\s*Ship\s*To\b[\s:]*", line, re.IGNORECASE)
-            if ship_match:
-                after = line[ship_match.end():].strip()
-                candidate = after
-                if not candidate:
-                    # Use the next non-empty line as candidate
-                    for j in range(idx + 1, len(lines)):
-                        next_line = lines[j].strip()
-                        if next_line:
-                            candidate = next_line
-                            break
-                if candidate:
-                    # Remove address information starting with digits
-                    candidate = re.sub(r"\s*\d.*", "", candidate).strip()
-                    ship_name = candidate
-        if order_num is not None and ship_name is not None:
-            break
-    # Fallback search for order number across entire document
-    if order_num is None:
-        full_text = "\n".join(lines)
-        m = ORDER_FALLBACK_REGEX.search(full_text)
-        if m:
-            order_num = m.group(0).strip()
-    return order_num, ship_name
 
-def sanitize_name(name: str) -> str:
-    """Sanitize a filename by allowing only alphanumeric characters, dash and underscore."""
-    return ''.join(c for c in name if c.isalnum() or c in ('-', '_'))
+    for page in doc:
+        lines.extend(page.get_text().splitlines())
+
+    full_text = "\n".join(lines)
+
+    # ---- ORDER NUMBER ----
+    order_number = None
+
+    for line in lines:
+        if "Order Number" in line:
+            parts = line.split(":")
+            if len(parts) > 1:
+                order_number = parts[1].strip()
+                break
+
+    if not order_number:
+        m = re.search(r"\bSV\d{6,}\b", full_text)
+        if m:
+            order_number = m.group(0)
+
+    # ---- SHIP TO (FIRST LINE AFTER HEADER) ----
+    ship_to = None
+    for i, line in enumerate(lines):
+        if line.strip().lower().startswith("ship to"):
+            for j in range(i + 1, len(lines)):
+                if lines[j].strip():
+                    ship_to = lines[j].strip()
+                    break
+            break
+
+    return order_number, ship_to
+
+
+# =========================
+# ROUTES
+# =========================
 
 @app.get("/", response_class=HTMLResponse)
-async def get_password(request: Request):
-    """Render the password page."""
-    return templates.TemplateResponse("password.html", {"request": request, "error": None})
+async def password_page(request: Request):
+    return templates.TemplateResponse("password.html", {"request": request})
+
 
 @app.post("/login", response_class=HTMLResponse)
-async def post_login(request: Request, password: str = Form(...)):
-    """Handle password submission and render the upload page if correct."""
+async def login(request: Request, password: str = Form(...)):
     if password == SECRET_PASSWORD:
         return templates.TemplateResponse("upload.html", {"request": request})
-    else:
-        error = "Error: wrong password! If entered wrong again the computer will self-destruct. Hint: Who is the best?"
-        return templates.TemplateResponse("password.html", {"request": request, "error": error})
+    return templates.TemplateResponse(
+        "password.html",
+        {
+            "request": request,
+            "error": "Wrong password. Hint: Who is the best?",
+        },
+    )
+
+
+# =========================
+# CUSTOMER NUMBER UPLOAD
+# =========================
 
 @app.post("/upload")
-async def upload_files(request: Request, files: List[UploadFile] = File(...)):
-    """Handle uploads for customer-number-based renaming."""
-    memory_file = io.BytesIO()
-    with zipfile.ZipFile(memory_file, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
-        for uploaded in files:
-            data = await uploaded.read()
-            cust_num = extract_customer_number_from_pdf_bytes(data)
-            if cust_num:
-                new_name = f"CTI-{cust_num}.pdf"
-            else:
-                base_name = Path(uploaded.filename or "file").stem
-                new_name = sanitize_name(base_name) + ".pdf"
-            zf.writestr(new_name, data)
-    memory_file.seek(0)
-    headers = {"Content-Disposition": f"attachment; filename=renamed_{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"}
-    return StreamingResponse(memory_file, media_type="application/x-zip-compressed", headers=headers)
+async def upload_customer(files: List[UploadFile] = File(...)):
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in files:
+            data = await f.read()
+            cust = extract_customer_number(data)
+            name = f"CTI-{cust}.pdf" if cust else f.filename
+            zf.writestr(sanitize_filename(name), data)
+
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=renamed_customers.zip"},
+    )
+
+
+# =========================
+# INVOICE NUMBER UPLOAD
+# =========================
 
 @app.post("/upload_invoice")
-async def upload_files_invoice(request: Request, files: List[UploadFile] = File(...)):
-    """Handle uploads for invoice-number-based renaming."""
-    memory_file = io.BytesIO()
-    with zipfile.ZipFile(memory_file, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
-        for uploaded in files:
-            data = await uploaded.read()
-            inv_num = extract_invoice_number_from_pdf_bytes(data)
-            if inv_num:
-                new_name = f"CTI-{inv_num}.pdf"
-            else:
-                base_name = Path(uploaded.filename or "file").stem
-                new_name = sanitize_name(base_name) + ".pdf"
-            zf.writestr(new_name, data)
-    memory_file.seek(0)
-    headers = {"Content-Disposition": f"attachment; filename=renamed_{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"}
-    return StreamingResponse(memory_file, media_type="application/x-zip-compressed", headers=headers)
+async def upload_invoice(files: List[UploadFile] = File(...)):
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in files:
+            data = await f.read()
+            inv = extract_invoice_number(data)
+            name = f"CTI-{inv}.pdf" if inv else f.filename
+            zf.writestr(sanitize_filename(name), data)
+
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=renamed_invoices.zip"},
+    )
+
+
+# =========================
+# SALES ORDER UPLOAD (FIXED)
+# =========================
 
 @app.post("/upload_salesorder")
-async def upload_salesorder_files(request: Request, files: List[UploadFile] = File(...)):
-    """Handle uploads for sales-order-based renaming."""
-    memory_file = io.BytesIO()
-    with zipfile.ZipFile(memory_file, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
-        for uploaded in files:
-            data = await uploaded.read()
-            order_num, ship_name = extract_sales_order_details_from_pdf_bytes(data)
-            if order_num and ship_name:
-                proposed = f"CTI Sales Order {order_num} {ship_name}.pdf"
-            elif order_num:
-                proposed = f"CTI Sales Order {order_num}.pdf"
-            elif ship_name:
-                proposed = f"CTI Sales Order {ship_name}.pdf"
-            else:
-                base_name = Path(uploaded.filename or "file").stem
-                proposed = sanitize_name(base_name) + ".pdf"
-            safe_name = sanitize_name(proposed)
-            zf.writestr(safe_name, data)
-    memory_file.seek(0)
-    headers = {"Content-Disposition": f"attachment; filename=renamed_{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"}
-    return StreamingResponse(memory_file, media_type="application/x-zip-compressed", headers=headers)
+async def upload_salesorder(files: List[UploadFile] = File(...)):
+    zip_buffer = io.BytesIO()
 
-# Mount static directory for CSS or JS assets if needed
-static_dir = Path(__file__).parent / "static"
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in files:
+            data = await f.read()
+
+            order_num, ship_to = extract_sales_order_info(data)
+
+            if order_num and ship_to:
+                filename = f"CTI Sales Order {order_num} {ship_to}.pdf"
+            elif order_num:
+                filename = f"CTI Sales Order {order_num}.pdf"
+            else:
+                filename = f.filename or "CTI Sales Order.pdf"
+
+            zf.writestr(sanitize_filename(filename), data)
+
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=renamed_salesorders.zip"},
+    )
+
+
+# =========================
+# STATIC FILES
+# =========================
+
+static_dir = BASE_DIR / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-
