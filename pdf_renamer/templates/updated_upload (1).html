@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Renamer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            background-color: #f5f5f5;
+        }
+        h2 {
+            margin-top: 2rem;
+        }
+        .drag-drop-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            margin-bottom: 1rem;
+            cursor: pointer;
+        }
+        .drag-drop-area.dragover {
+            background-color: #f0f0f0;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        /* Banner styling */
+        .banner {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 8px;
+            color: #856404;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        /* File list preview styles */
+        .file-list {
+            margin-top: 1rem;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+        .remove-button {
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            line-height: 1;
+            color: #d9534f;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- Banner reminding the user how amazing Justin is -->
+    <div class="banner">As your files get renamed, take a moment to remember how amazing Justin is!</div>
+
+    <h1>PDF Renamer</h1>
+
+    <!-- Form for renaming by customer number -->
+    <h2>Rename by Customer Number</h2>
+    <form id="customer-form" method="post" action="/upload" enctype="multipart/form-data">
+        <div id="drop-area-cust" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
+        <input type="file" id="customer-files" name="files" accept="application/pdf" multiple required>
+        <div id="preview-cust" class="file-list"></div>
+        <button type="submit">Upload and Rename (Customer)</button>
+    </form>
+
+    <!-- Form for renaming by invoice number -->
+    <h2>Rename by Invoice Number</h2>
+    <form id="invoice-form" method="post" action="/upload_invoice" enctype="multipart/form-data">
+        <div id="drop-area-inv" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
+        <input type="file" id="invoice-files" name="files" accept="application/pdf" multiple required>
+        <div id="preview-inv" class="file-list"></div>
+        <button type="submit">Upload and Rename (Invoice)</button>
+    </form>
+
+    <!-- Form for renaming Sales Order PDFs -->
+    <h2>Rename Sales Order</h2>
+    <form id="salesorder-form" method="post" action="/upload_salesorder" enctype="multipart/form-data">
+        <div id="drop-area-so" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
+        <input type="file" id="salesorder-files" name="files" accept="application/pdf" multiple required>
+        <div id="preview-so" class="file-list"></div>
+        <button type="submit">Upload and Rename (Sales Order)</button>
+    </form>
+
+    <script>
+        /**
+         * Set up drag-and-drop and file management for a specific form. This implementation
+         * allows users to drag and drop files multiple times without losing previously
+         * selected files. It also adds a small '×' button next to each file name to
+         * remove it from the list before submission.
+         *
+         * @param {string} dropAreaId The ID of the drop area element
+         * @param {string} fileInputId The ID of the file input element
+         * @param {string} previewId The ID of the element where file names will be listed
+         */
+        function setupDragDrop(dropAreaId, fileInputId, previewId) {
+            const dropArea = document.getElementById(dropAreaId);
+            const fileInput = document.getElementById(fileInputId);
+            const previewList = document.getElementById(previewId);
+            let filesList = [];
+
+            // Highlight drop area on drag over
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropArea.classList.add('dragover');
+                });
+            });
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropArea.classList.remove('dragover');
+                });
+            });
+
+            // Render the list of selected files with delete buttons
+            function renderPreview() {
+                previewList.innerHTML = '';
+                filesList.forEach((file, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'file-item';
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = file.name;
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'remove-button';
+                    removeBtn.textContent = '×';
+                    removeBtn.onclick = () => {
+                        filesList.splice(index, 1);
+                        updateFileInput();
+                        renderPreview();
+                    };
+                    item.appendChild(nameSpan);
+                    item.appendChild(removeBtn);
+                    previewList.appendChild(item);
+                });
+            }
+
+            // Update the file input's FileList to match our internal filesList array
+            function updateFileInput() {
+                const dataTransfer = new DataTransfer();
+                filesList.forEach(file => dataTransfer.items.add(file));
+                fileInput.files = dataTransfer.files;
+            }
+
+            // Handle file drops
+            dropArea.addEventListener('drop', (e) => {
+                const droppedFiles = Array.from(e.dataTransfer.files);
+                filesList = filesList.concat(droppedFiles);
+                updateFileInput();
+                renderPreview();
+            });
+
+            // Handle file selection through the file dialog
+            fileInput.addEventListener('change', () => {
+                const selectedFiles = Array.from(fileInput.files);
+                filesList = filesList.concat(selectedFiles);
+                updateFileInput();
+                renderPreview();
+            });
+
+            // Clicking the drop area opens the file picker
+            dropArea.addEventListener('click', () => {
+                fileInput.click();
+            });
+        }
+
+        // Initialize the drag & drop handlers for each form
+        setupDragDrop('drop-area-cust', 'customer-files', 'preview-cust');
+        setupDragDrop('drop-area-inv', 'invoice-files', 'preview-inv');
+        setupDragDrop('drop-area-so', 'salesorder-files', 'preview-so');
+    </script>
+</body>
+</html>
