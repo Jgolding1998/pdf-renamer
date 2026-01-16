@@ -40,26 +40,9 @@
     <h2>Rename by Customer Number</h2>
     <form method="post" action="/upload" enctype="multipart/form-data">
         <div id="drop-area" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
-        <input type="file" id="files" name="files" accept="application/pdf" multiple required>
-        <button type="submit">Upload and Rename (Customer)</button>
-    </form>
+        <irm>
 
-    <!-- Form for renaming by invoice number -->
-    <h2>Rename by Invoice Number</h2>
-    <form method="post" action="/upload_invoice" enctype="multipart/form-data">
-        <div id="drop-area-inv" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
-        <input type="file" id="invoice-files" name="files" accept="application/pdf" multiple required>
-        <button type="submit">Upload and Rename (Invoice)</button>
-    </form>
-
-    <!-- Form for renaming by customer and invoice numbers -->
-    <h2>Rename by Customer &amp; Invoice</h2>
-    <form method="post" action="/upload_cust_invoice" enctype="multipart/form-data">
-        <div id="drop-area-cust-inv" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
-        <input type="file" id="cust-inv-files" name="files" accept="application/pdf" multiple required>
-        <button type="submit">Upload and Rename (Customer &amp; Invoice)</button>
-    </form>
-
+   
     <!-- Form for renaming Sales Order PDFs -->
     <h2>Rename Sales Order</h2>
     <form method="post" action="/upload_salesorder" enctype="multipart/form-data">
@@ -111,7 +94,7 @@
         // Initialize drag & drop for each form
         setupDragDrop('drop-area', 'files');
         setupDragDrop('drop-area-inv', 'invoice-files');
-        setupDragDrop('drop-area-cust-inv', 'cust-inv-files');
+  
         setupDragDrop('drop-area-so', 'salesorder-files');
     </script>
 </body>
