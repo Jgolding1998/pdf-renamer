@@ -1,3 +1,5 @@
-Flask
-PyPDF2
+fastapi
+uvicorn
+pymupdf
+python-multipart
 jinja2
