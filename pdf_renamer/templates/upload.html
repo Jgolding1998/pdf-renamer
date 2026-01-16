@@ -1,216 +1,189 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PDF Renamer</title>
 
 <style>
-  body { font-family: Arial, sans-serif; margin: 2rem; }
-  h2 { margin-top: 1.5rem; }
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 2rem;
+    background: url("/static/invoice_graveyard.png") no-repeat center center fixed;
+    background-size: cover;
+}
 
-  .drag-drop-area {
+.container {
+    background: rgba(255,255,255,0.95);
+    padding: 2rem;
+    border-radius: 12px;
+    max-width: 900px;
+    margin: auto;
+}
+
+h1 { margin-top: 0; }
+
+.banner {
+    font-weight: bold;
+    margin-bottom: 1.5rem;
+    font-size: 1.1rem;
+}
+
+.section {
+    margin-top: 2.5rem;
+}
+
+.drag-drop-area {
     border: 2px dashed #ccc;
     border-radius: 8px;
     padding: 1.25rem;
     text-align: center;
     cursor: pointer;
     margin-bottom: 1rem;
-    user-select: none;
-  }
-  .drag-drop-area.dragover { background: #f0f0f0; }
+}
 
-  .file-list { margin: 0 0 1rem 0; padding: 0; list-style: none; }
-  .file-item {
+.drag-drop-area.dragover {
+    background: #f0f0f0;
+}
+
+.file-list {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 1rem;
+}
+
+.file-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.35rem 0;
+    padding: 0.3rem 0;
     border-bottom: 1px solid #eee;
-  }
-  .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .remove-btn {
+}
+
+.file-item button {
     background: none;
     border: none;
-    color: #c00;
+    color: red;
     font-size: 1.1rem;
     cursor: pointer;
-    padding: 0.1rem 0.4rem;
-  }
+}
 
-  input[type="file"] { display: none; }
-
-  button.submit-btn {
+button.submit-btn {
     padding: 0.6rem 1.2rem;
     font-size: 1rem;
     cursor: pointer;
-  }
+}
 
-  .status { margin-top: 0.75rem; color: #333; }
+.status {
+    margin-top: 0.5rem;
+}
 </style>
 </head>
 
 <body>
+<div class="container">
+
 <h1>PDF Renamer</h1>
 
-<h2>Rename Sales Orders</h2>
-
-<div id="drop-area" class="drag-drop-area">
-  Drag & drop PDFs here or click to select files
+<div class="banner">
+    As your files get renamed, take a moment to remember how amazing Justin is 😄
 </div>
 
-<input id="file-input" type="file" accept="application/pdf" multiple />
+<div id="sections"></div>
 
-<ul id="file-list" class="file-list"></ul>
-
-<button id="upload-btn" class="submit-btn" type="button" disabled>
-  Upload and Rename
-</button>
-
-<div id="status" class="status"></div>
+</div>
 
 <script>
-  const dropArea = document.getElementById("drop-area");
-  const fileInput = document.getElementById("file-input");
-  const fileListEl = document.getElementById("file-list");
-  const uploadBtn = document.getElementById("upload-btn");
-  const statusEl = document.getElementById("status");
+function createUploader(title, endpoint) {
+    const files = [];
+    const section = document.createElement("div");
+    section.className = "section";
 
-  /** Store files here (NOT in input.files) */
-  let files = [];
+    section.innerHTML = `
+        <h2>${title}</h2>
+        <div class="drag-drop-area">Drag & drop PDFs here or click to select files</div>
+        <input type="file" accept="application/pdf" multiple hidden>
+        <ul class="file-list"></ul>
+        <button class="submit-btn" disabled>Upload and Rename</button>
+        <div class="status"></div>
+    `;
 
-  function fileKey(f) {
-    return `${f.name}__${f.size}__${f.lastModified}`;
-  }
+    const dropArea = section.querySelector(".drag-drop-area");
+    const input = section.querySelector("input");
+    const list = section.querySelector(".file-list");
+    const button = section.querySelector("button");
+    const status = section.querySelector(".status");
 
-  function addFiles(fileList) {
-    const incoming = Array.from(fileList);
-
-    // Append (dedupe)
-    const existingKeys = new Set(files.map(fileKey));
-    for (const f of incoming) {
-      if (!existingKeys.has(fileKey(f))) {
-        files.push(f);
-        existingKeys.add(fileKey(f));
-      }
+    function render() {
+        list.innerHTML = "";
+        files.forEach((f, i) => {
+            const li = document.createElement("li");
+            li.className = "file-item";
+            li.innerHTML = `<span>${f.name}</span><button>✕</button>`;
+            li.querySelector("button").onclick = () => {
+                files.splice(i, 1);
+                render();
+            };
+            list.appendChild(li);
+        });
+        button.disabled = files.length === 0;
     }
 
-    render();
-  }
-
-  function removeAt(idx) {
-    files.splice(idx, 1);
-    render();
-  }
-
-  function render() {
-    fileListEl.innerHTML = "";
-
-    for (let i = 0; i < files.length; i++) {
-      const li = document.createElement("li");
-      li.className = "file-item";
-
-      const name = document.createElement("div");
-      name.className = "file-name";
-      name.textContent = files[i].name;
-
-      const btn = document.createElement("button");
-      btn.className = "remove-btn";
-      btn.type = "button";
-      btn.textContent = "✕";
-      btn.onclick = () => removeAt(i);
-
-      li.appendChild(name);
-      li.appendChild(btn);
-      fileListEl.appendChild(li);
+    function addFiles(newFiles) {
+        for (const f of newFiles) {
+            if (!files.some(x => x.name === f.name && x.size === f.size)) {
+                files.push(f);
+            }
+        }
+        render();
     }
 
-    uploadBtn.disabled = files.length === 0;
-    statusEl.textContent = files.length ? `${files.length} file(s) ready.` : "";
-  }
+    ["dragenter","dragover"].forEach(e =>
+        dropArea.addEventListener(e, ev => {
+            ev.preventDefault();
+            dropArea.classList.add("dragover");
+        })
+    );
 
-  // Drag styling
-  ["dragenter", "dragover"].forEach(evt =>
-    dropArea.addEventListener(evt, e => {
-      e.preventDefault();
-      e.stopPropagation();
-      dropArea.classList.add("dragover");
-    })
-  );
+    ["dragleave","drop"].forEach(e =>
+        dropArea.addEventListener(e, ev => {
+            ev.preventDefault();
+            dropArea.classList.remove("dragover");
+        })
+    );
 
-  ["dragleave", "drop"].forEach(evt =>
-    dropArea.addEventListener(evt, e => {
-      e.preventDefault();
-      e.stopPropagation();
-      dropArea.classList.remove("dragover");
-    })
-  );
+    dropArea.onclick = () => input.click();
+    dropArea.ondrop = e => addFiles(e.dataTransfer.files);
+    input.onchange = () => addFiles(input.files);
 
-  // Drop adds (append)
-  dropArea.addEventListener("drop", e => {
-    addFiles(e.dataTransfer.files);
-  });
+    button.onclick = async () => {
+        status.textContent = "Uploading...";
+        const fd = new FormData();
+        files.forEach(f => fd.append("files", f));
 
-  // Click opens chooser
-  dropArea.addEventListener("click", () => fileInput.click());
+        const res = await fetch(endpoint, { method: "POST", body: fd });
+        const blob = await res.blob();
 
-  // Choose adds (append)
-  fileInput.addEventListener("change", () => {
-    addFiles(fileInput.files);
-    // Clear the input so choosing the same file again still triggers change
-    fileInput.value = "";
-  });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "renamed_files.zip";
+        a.click();
+        URL.revokeObjectURL(url);
 
-  // Upload via fetch + FormData
-  uploadBtn.addEventListener("click", async () => {
-    if (!files.length) return;
+        status.textContent = "Done!";
+    };
 
-    statusEl.textContent = "Uploading…";
+    return section;
+}
 
-    try {
-      const fd = new FormData();
-      for (const f of files) fd.append("files", f);
+const container = document.getElementById("sections");
 
-      const resp = await fetch("/upload_salesorder", {
-        method: "POST",
-        body: fd
-      });
-
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(text || `Upload failed: ${resp.status}`);
-      }
-
-      const blob = await resp.blob();
-
-      // Try to get filename from header
-      const cd = resp.headers.get("Content-Disposition") || "";
-      let filename = "renamed_salesorders.zip";
-      const m = cd.match(/filename="?([^"]+)"?/i);
-      if (m && m[1]) filename = m[1];
-
-      // Download
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      statusEl.textContent = "Done! Download should start.";
-      // Optional: clear list after success
-      // files = [];
-      // render();
-
-    } catch (err) {
-      statusEl.textContent = "Error: " + (err?.message || err);
-    }
-  });
-
-  render();
+container.appendChild(createUploader("Rename by Customer Number", "/upload"));
+container.appendChild(createUploader("Rename by Invoice Number", "/upload_invoice"));
+container.appendChild(createUploader("Rename Sales Order", "/upload_salesorder"));
 </script>
+
 </body>
 </html>
