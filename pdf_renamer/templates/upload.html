@@ -1,164 +1,216 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>PDF Renamer</title>
 
 <style>
-body {
-    font-family: Arial, sans-serif;
-    margin: 2rem;
-}
+  body { font-family: Arial, sans-serif; margin: 2rem; }
+  h2 { margin-top: 1.5rem; }
 
-h2 {
-    margin-top: 2.5rem;
-}
-
-.drag-drop-area {
+  .drag-drop-area {
     border: 2px dashed #ccc;
     border-radius: 8px;
-    padding: 1.5rem;
+    padding: 1.25rem;
     text-align: center;
     cursor: pointer;
     margin-bottom: 1rem;
-}
+    user-select: none;
+  }
+  .drag-drop-area.dragover { background: #f0f0f0; }
 
-.drag-drop-area.dragover {
-    background-color: #f0f0f0;
-}
-
-.file-list {
-    margin-bottom: 1rem;
-}
-
-.file-item {
+  .file-list { margin: 0 0 1rem 0; padding: 0; list-style: none; }
+  .file-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.3rem 0;
-}
-
-.file-item button {
+    gap: 0.75rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #eee;
+  }
+  .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .remove-btn {
     background: none;
     border: none;
-    color: red;
-    font-size: 1.2rem;
+    color: #c00;
+    font-size: 1.1rem;
     cursor: pointer;
-}
+    padding: 0.1rem 0.4rem;
+  }
 
-input[type="file"] {
-    display: none;
-}
+  input[type="file"] { display: none; }
 
-button.submit-btn {
+  button.submit-btn {
     padding: 0.6rem 1.2rem;
     font-size: 1rem;
     cursor: pointer;
-}
+  }
+
+  .status { margin-top: 0.75rem; color: #333; }
 </style>
 </head>
 
 <body>
-
 <h1>PDF Renamer</h1>
 
-<!-- ================= SALES ORDER ================= -->
+<h2>Rename Sales Orders</h2>
 
-<h2>Rename Sales Order</h2>
-<form method="post" action="/upload_salesorder" enctype="multipart/form-data">
-    <div id="drop-area" class="drag-drop-area">
-        Drag & drop PDFs here or click to select files
-    </div>
+<div id="drop-area" class="drag-drop-area">
+  Drag & drop PDFs here or click to select files
+</div>
 
-    <div id="file-list" class="file-list"></div>
+<input id="file-input" type="file" accept="application/pdf" multiple />
 
-    <input
-        type="file"
-        id="file-input"
-        name="files"
-        accept="application/pdf"
-        multiple
-        required
-    >
+<ul id="file-list" class="file-list"></ul>
 
-    <button class="submit-btn" type="submit">Upload and Rename</button>
-</form>
+<button id="upload-btn" class="submit-btn" type="button" disabled>
+  Upload and Rename
+</button>
+
+<div id="status" class="status"></div>
 
 <script>
-const dropArea = document.getElementById("drop-area");
-const fileInput = document.getElementById("file-input");
-const fileListEl = document.getElementById("file-list");
+  const dropArea = document.getElementById("drop-area");
+  const fileInput = document.getElementById("file-input");
+  const fileListEl = document.getElementById("file-list");
+  const uploadBtn = document.getElementById("upload-btn");
+  const statusEl = document.getElementById("status");
 
-let files = [];
+  /** Store files here (NOT in input.files) */
+  let files = [];
 
-function syncInputFiles() {
-    const dataTransfer = new DataTransfer();
-    files.forEach(f => dataTransfer.items.add(f));
-    fileInput.files = dataTransfer.files;
-}
+  function fileKey(f) {
+    return `${f.name}__${f.size}__${f.lastModified}`;
+  }
 
-function renderFileList() {
+  function addFiles(fileList) {
+    const incoming = Array.from(fileList);
+
+    // Append (dedupe)
+    const existingKeys = new Set(files.map(fileKey));
+    for (const f of incoming) {
+      if (!existingKeys.has(fileKey(f))) {
+        files.push(f);
+        existingKeys.add(fileKey(f));
+      }
+    }
+
+    render();
+  }
+
+  function removeAt(idx) {
+    files.splice(idx, 1);
+    render();
+  }
+
+  function render() {
     fileListEl.innerHTML = "";
 
-    files.forEach((file, index) => {
-        const div = document.createElement("div");
-        div.className = "file-item";
+    for (let i = 0; i < files.length; i++) {
+      const li = document.createElement("li");
+      li.className = "file-item";
 
-        const span = document.createElement("span");
-        span.textContent = file.name;
+      const name = document.createElement("div");
+      name.className = "file-name";
+      name.textContent = files[i].name;
 
-        const btn = document.createElement("button");
-        btn.innerHTML = "✕";
-        btn.onclick = () => {
-            files.splice(index, 1);
-            syncInputFiles();
-            renderFileList();
-        };
+      const btn = document.createElement("button");
+      btn.className = "remove-btn";
+      btn.type = "button";
+      btn.textContent = "✕";
+      btn.onclick = () => removeAt(i);
 
-        div.appendChild(span);
-        div.appendChild(btn);
-        fileListEl.appendChild(div);
-    });
-}
-
-function addFiles(newFiles) {
-    for (const file of newFiles) {
-        if (!files.some(f => f.name === file.name && f.size === file.size)) {
-            files.push(file);
-        }
+      li.appendChild(name);
+      li.appendChild(btn);
+      fileListEl.appendChild(li);
     }
-    syncInputFiles();
-    renderFileList();
-}
 
-/* Drag events */
-["dragenter", "dragover"].forEach(e =>
-    dropArea.addEventListener(e, ev => {
-        ev.preventDefault();
-        dropArea.classList.add("dragover");
+    uploadBtn.disabled = files.length === 0;
+    statusEl.textContent = files.length ? `${files.length} file(s) ready.` : "";
+  }
+
+  // Drag styling
+  ["dragenter", "dragover"].forEach(evt =>
+    dropArea.addEventListener(evt, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropArea.classList.add("dragover");
     })
-);
+  );
 
-["dragleave", "drop"].forEach(e =>
-    dropArea.addEventListener(e, ev => {
-        ev.preventDefault();
-        dropArea.classList.remove("dragover");
+  ["dragleave", "drop"].forEach(evt =>
+    dropArea.addEventListener(evt, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropArea.classList.remove("dragover");
     })
-);
+  );
 
-dropArea.addEventListener("drop", e => {
+  // Drop adds (append)
+  dropArea.addEventListener("drop", e => {
     addFiles(e.dataTransfer.files);
-});
+  });
 
-dropArea.addEventListener("click", () => {
-    fileInput.click();
-});
+  // Click opens chooser
+  dropArea.addEventListener("click", () => fileInput.click());
 
-fileInput.addEventListener("change", () => {
+  // Choose adds (append)
+  fileInput.addEventListener("change", () => {
     addFiles(fileInput.files);
-});
-</script>
+    // Clear the input so choosing the same file again still triggers change
+    fileInput.value = "";
+  });
 
+  // Upload via fetch + FormData
+  uploadBtn.addEventListener("click", async () => {
+    if (!files.length) return;
+
+    statusEl.textContent = "Uploading…";
+
+    try {
+      const fd = new FormData();
+      for (const f of files) fd.append("files", f);
+
+      const resp = await fetch("/upload_salesorder", {
+        method: "POST",
+        body: fd
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(text || `Upload failed: ${resp.status}`);
+      }
+
+      const blob = await resp.blob();
+
+      // Try to get filename from header
+      const cd = resp.headers.get("Content-Disposition") || "";
+      let filename = "renamed_salesorders.zip";
+      const m = cd.match(/filename="?([^"]+)"?/i);
+      if (m && m[1]) filename = m[1];
+
+      // Download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      statusEl.textContent = "Done! Download should start.";
+      // Optional: clear list after success
+      // files = [];
+      // render();
+
+    } catch (err) {
+      statusEl.textContent = "Error: " + (err?.message || err);
+    }
+  });
+
+  render();
+</script>
 </body>
 </html>
