@@ -39,8 +39,20 @@
     <!-- Form for renaming by customer number -->
     <h2>Rename by Customer Number</h2>
     <form method="post" action="/upload" enctype="multipart/form-data">
-        <div id="drop-area" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
-        <irm>
+        <div id="drop-area" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files<
+                                                                                                         /div>    <input type="file" id="files" name="files" accept="application/pdf" multiple required>
+    <button type="submit">Upload and Rename (Customer Number)</button>
+</form>
+
+<!-- Form for renaming by Invoice Number -->
+<h2>Rename by Invoice Number</h2>
+<form method="post" action="/upload_invoice" enctype="multipart/form-data">
+    <div id="drop-area-inv" class="drag-drop-area">Drag & drop PDFs here or click to select files</div>
+    <input type="file" id="invoice-files" name="files" accept="application/pdf" multiple required>
+    <button type="submit">Upload and Rename (Invoice Number)</button>
+</form>
+
+<!-->-
 
    
     <!-- Form for renaming Sales Order PDFs -->
@@ -63,6 +75,16 @@
             const fileInput = document.getElementById(fileInputId);
 
             // Highlight drop area when file is dragged over
+                        const defaultText = dropArea.innerHTML;
+            function updatePreview() {
+                if (fileInput.files && fileInput.files.length > 0) {
+                    const names = Array.from(fileInput.files).map(f => f.name).join(', ');
+                    dropArea.textContent = names;
+                } else {
+                    dropArea.innerHTML = defaultText;
+                }
+            }
+
             ['dragenter', 'dragover'].forEach(eventName => {
                 dropArea.addEventListener(eventName, (e) => {
                     e.preventDefault();
