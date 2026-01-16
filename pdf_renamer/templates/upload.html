@@ -1,133 +1,118 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Upload Invoices – PDF Renamer</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Renamer</title>
     <style>
-      body {
-        /* Ensure the background image covers the full viewport height */
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 0;
-        height: 100vh;
-        background-image: url('/static/invoice_graveyard.png');
-        background-size: cover;
-        /* Center the background image so it fills the page without leaving white space */
-        background-position: center;
-        background-repeat: no-repeat;
-      }
-      h1 {
-        margin-bottom: 1rem;
-      }
-      .card {
-        background-color: #ffffff;
-        padding: 2rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        max-width: 600px;
-        margin: 6rem auto;
-      }
-      /* Hide the native file inputs so we can style the drop zones instead */
-      input[type="file"] {
-        display: none;
-      }
-      /* Generic form styling */
-      form {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-      }
-      /* Styling for the drag-and-drop areas */
-      .drag-drop-area {
-        border: 2px dashed #007bff;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        text-align: center;
-        color: #6c757d;
-        cursor: pointer;
-        margin-bottom: 1rem;
-      }
-      .drag-drop-area.dragover {
-        background-color: #e9ecef;
-      }
-      h2 {
-        margin-top: 1.5rem;
-        margin-bottom: 0.5rem;
-      }
-      .message {
-        background-color: #e2f0d9;
-        border: 1px solid #badbcc;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-        color: #0f5132;
-      }
-      button {
-        padding: 0.5rem 1rem;
-        background-color: #007bff;
-        border: none;
-        color: white;
-        border-radius: 0.25rem;
-        cursor: pointer;
-        font-size: 1rem;
-      }
-      button:hover {
-        background-color: #0069d9;
-      }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2rem;
+        }
+        h2 {
+            margin-top: 2rem;
+        }
+        .drag-drop-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            margin-bottom: 1rem;
+            cursor: pointer;
+        }
+        .drag-drop-area.dragover {
+            background-color: #f0f0f0;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            cursor: pointer;
+        }
     </style>
-  </head>
-  <body>
-    <div class="card">
-      <h1>Upload PDF Invoices</h1>
-      <div class="message">
-        As your PDFs are being renamed, please take a moment to remember how great Justin is!
-      </div>
-      <!-- Form for renaming by customer number -->
-      <h2>Rename by Customer Number</h2>
-      <form method="post" action="/upload" enctype="multipart/form-data">
-        <div id="drop-area-cust" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
-        <input type="file" id="customer-files" name="files" accept="application/pdf" multiple required>
+</head>
+<body>
+    <h1>PDF Renamer</h1>
+
+    <!-- Form for renaming by customer number -->
+    <h2>Rename by Customer Number</h2>
+    <form method="post" action="/upload" enctype="multipart/form-data">
+        <div id="drop-area" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
+        <input type="file" id="files" name="files" accept="application/pdf" multiple required>
         <button type="submit">Upload and Rename (Customer)</button>
-      </form>
-      <!-- Form for renaming by invoice number -->
-      <h2>Rename by Invoice Number</h2>
-      <form method="post" action="/upload_invoice" enctype="multipart/form-data">
+    </form>
+
+    <!-- Form for renaming by invoice number -->
+    <h2>Rename by Invoice Number</h2>
+    <form method="post" action="/upload_invoice" enctype="multipart/form-data">
         <div id="drop-area-inv" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
         <input type="file" id="invoice-files" name="files" accept="application/pdf" multiple required>
         <button type="submit">Upload and Rename (Invoice)</button>
-      </form>
-    </div>
+    </form>
+
+    <!-- Form for renaming by customer and invoice numbers -->
+    <h2>Rename by Customer &amp; Invoice</h2>
+    <form method="post" action="/upload_cust_invoice" enctype="multipart/form-data">
+        <div id="drop-area-cust-inv" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
+        <input type="file" id="cust-inv-files" name="files" accept="application/pdf" multiple required>
+        <button type="submit">Upload and Rename (Customer &amp; Invoice)</button>
+    </form>
+
+    <!-- Form for renaming Sales Order PDFs -->
+    <h2>Rename Sales Order</h2>
+    <form method="post" action="/upload_salesorder" enctype="multipart/form-data">
+        <div id="drop-area-so" class="drag-drop-area">Drag &amp; drop PDFs here or click to select files</div>
+        <input type="file" id="salesorder-files" name="files" accept="application/pdf" multiple required>
+        <button type="submit">Upload and Rename (Sales Order)</button>
+    </form>
+
     <script>
-      // Generic helper to wire up a drag-and-drop area to a hidden file input.
-      function setupDragDrop(dropAreaId, inputId) {
-        const dropArea = document.getElementById(dropAreaId);
-        const fileInput = document.getElementById(inputId);
-        // When the drop area is clicked, open the file dialog.
-        dropArea.addEventListener('click', () => {
-          fileInput.click();
-        });
-        // Highlight the drop area when a file is dragged over it.
-        dropArea.addEventListener('dragover', (e) => {
-          e.preventDefault();
-          dropArea.classList.add('dragover');
-        });
-        dropArea.addEventListener('dragleave', () => {
-          dropArea.classList.remove('dragover');
-        });
-        // Handle dropped files by assigning them to the hidden file input.
-        dropArea.addEventListener('drop', (e) => {
-          e.preventDefault();
-          dropArea.classList.remove('dragover');
-          const files = e.dataTransfer.files;
-          // Assign the dropped files to the file input so the form will submit them
-          fileInput.files = files;
-        });
-      }
-      // Initialize both drop zones
-      setupDragDrop('drop-area-cust', 'customer-files');
-      setupDragDrop('drop-area-inv', 'invoice-files');
+        /**
+         * Generic drag and drop handler for file inputs. When the user
+         * drags a file over the drop area, we highlight it. When they drop
+         * the file, we assign it to the associated file input. Clicking
+         * the drop area also triggers the file picker.
+         */
+        function setupDragDrop(dropAreaId, fileInputId) {
+            const dropArea = document.getElementById(dropAreaId);
+            const fileInput = document.getElementById(fileInputId);
+
+            // Highlight drop area when file is dragged over
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropArea.classList.add('dragover');
+                }, false);
+            });
+
+            // Remove highlight when drag leaves or ends
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropArea.classList.remove('dragover');
+                }, false);
+            });
+
+            // Handle dropped files
+            dropArea.addEventListener('drop', (e) => {
+                fileInput.files = e.dataTransfer.files;
+            });
+
+            // Trigger file input when clicking drop area
+            dropArea.addEventListener('click', () => {
+                fileInput.click();
+            });
+        }
+
+        // Initialize drag & drop for each form
+        setupDragDrop('drop-area', 'files');
+        setupDragDrop('drop-area-inv', 'invoice-files');
+        setupDragDrop('drop-area-cust-inv', 'cust-inv-files');
+        setupDragDrop('drop-area-so', 'salesorder-files');
     </script>
-  </body>
+</body>
 </html>
