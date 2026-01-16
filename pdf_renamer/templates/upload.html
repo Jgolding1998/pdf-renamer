@@ -1,154 +1,163 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Renamer</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Renamer</title>
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 2rem;
-        }
+<style>
+body {
+    font-family: Arial, sans-serif;
+    margin: 2rem;
+}
 
-        h1 {
-            margin-bottom: 1rem;
-        }
+h2 {
+    margin-top: 2.5rem;
+}
 
-        h2 {
-            margin-top: 2.5rem;
-        }
+.drag-drop-area {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    margin-bottom: 1rem;
+}
 
-        .drag-drop-area {
-            border: 2px dashed #ccc;
-            border-radius: 8px;
-            padding: 1.5rem;
-            text-align: center;
-            margin-bottom: 1rem;
-            cursor: pointer;
-            white-space: pre-line;
-        }
+.drag-drop-area.dragover {
+    background-color: #f0f0f0;
+}
 
-        .drag-drop-area.dragover {
-            background-color: #f0f0f0;
-        }
+.file-list {
+    margin-bottom: 1rem;
+}
 
-        input[type="file"] {
-            display: none;
-        }
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 0;
+}
 
-        button {
-            padding: 0.6rem 1.2rem;
-            font-size: 1rem;
-            cursor: pointer;
-        }
-    </style>
+.file-item button {
+    background: none;
+    border: none;
+    color: red;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+input[type="file"] {
+    display: none;
+}
+
+button.submit-btn {
+    padding: 0.6rem 1.2rem;
+    font-size: 1rem;
+    cursor: pointer;
+}
+</style>
 </head>
+
 <body>
 
 <h1>PDF Renamer</h1>
-
-<!-- ================= CUSTOMER NUMBER ================= -->
-
-<h2>Rename by Customer Number</h2>
-<form method="post" action="/upload" enctype="multipart/form-data">
-    <div id="drop-area-customer" class="drag-drop-area">
-        Drag & drop PDFs here or click to select files
-    </div>
-    <input
-        type="file"
-        id="customer-files"
-        name="files"
-        accept="application/pdf"
-        multiple
-        required
-    >
-    <button type="submit">Upload and Rename (Customer)</button>
-</form>
-
-<!-- ================= INVOICE NUMBER ================= -->
-
-<h2>Rename by Invoice Number</h2>
-<form method="post" action="/upload_invoice" enctype="multipart/form-data">
-    <div id="drop-area-invoice" class="drag-drop-area">
-        Drag & drop PDFs here or click to select files
-    </div>
-    <input
-        type="file"
-        id="invoice-files"
-        name="files"
-        accept="application/pdf"
-        multiple
-        required
-    >
-    <button type="submit">Upload and Rename (Invoice)</button>
-</form>
 
 <!-- ================= SALES ORDER ================= -->
 
 <h2>Rename Sales Order</h2>
 <form method="post" action="/upload_salesorder" enctype="multipart/form-data">
-    <div id="drop-area-salesorder" class="drag-drop-area">
+    <div id="drop-area" class="drag-drop-area">
         Drag & drop PDFs here or click to select files
     </div>
+
+    <div id="file-list" class="file-list"></div>
+
     <input
         type="file"
-        id="salesorder-files"
+        id="file-input"
         name="files"
         accept="application/pdf"
         multiple
         required
     >
-    <button type="submit">Upload and Rename (Sales Order)</button>
+
+    <button class="submit-btn" type="submit">Upload and Rename</button>
 </form>
 
 <script>
-    function setupDragDrop(dropAreaId, fileInputId) {
-        const dropArea = document.getElementById(dropAreaId);
-        const fileInput = document.getElementById(fileInputId);
-        const defaultText = dropArea.textContent;
+const dropArea = document.getElementById("drop-area");
+const fileInput = document.getElementById("file-input");
+const fileListEl = document.getElementById("file-list");
 
-        function updatePreview() {
-            if (fileInput.files.length > 0) {
-                dropArea.textContent = Array.from(fileInput.files)
-                    .map(f => "• " + f.name)
-                    .join("\n");
-            } else {
-                dropArea.textContent = defaultText;
-            }
+let files = [];
+
+function syncInputFiles() {
+    const dataTransfer = new DataTransfer();
+    files.forEach(f => dataTransfer.items.add(f));
+    fileInput.files = dataTransfer.files;
+}
+
+function renderFileList() {
+    fileListEl.innerHTML = "";
+
+    files.forEach((file, index) => {
+        const div = document.createElement("div");
+        div.className = "file-item";
+
+        const span = document.createElement("span");
+        span.textContent = file.name;
+
+        const btn = document.createElement("button");
+        btn.innerHTML = "✕";
+        btn.onclick = () => {
+            files.splice(index, 1);
+            syncInputFiles();
+            renderFileList();
+        };
+
+        div.appendChild(span);
+        div.appendChild(btn);
+        fileListEl.appendChild(div);
+    });
+}
+
+function addFiles(newFiles) {
+    for (const file of newFiles) {
+        if (!files.some(f => f.name === file.name && f.size === file.size)) {
+            files.push(file);
         }
-
-        ["dragenter", "dragover"].forEach(eventName => {
-            dropArea.addEventListener(eventName, e => {
-                e.preventDefault();
-                e.stopPropagation();
-                dropArea.classList.add("dragover");
-            });
-        });
-
-        ["dragleave", "drop"].forEach(eventName => {
-            dropArea.addEventListener(eventName, e => {
-                e.preventDefault();
-                e.stopPropagation();
-                dropArea.classList.remove("dragover");
-            });
-        });
-
-        dropArea.addEventListener("drop", e => {
-            fileInput.files = e.dataTransfer.files;
-            updatePreview();
-        });
-
-        fileInput.addEventListener("change", updatePreview);
-
-        dropArea.addEventListener("click", () => {
-            fileInput.click();
-        });
     }
+    syncInputFiles();
+    renderFileList();
+}
 
-    setupDragDrop("drop-area-customer", "customer-files");
-    setupDragDrop("drop-area-invoice", "invoice-files");
-    setupDragDrop("drop-area-salesorder", "salesorder-files");
+/* Drag events */
+["dragenter", "dragover"].forEach(e =>
+    dropArea.addEventListener(e, ev => {
+        ev.preventDefault();
+        dropArea.classList.add("dragover");
+    })
+);
+
+["dragleave", "drop"].forEach(e =>
+    dropArea.addEventListener(e, ev => {
+        ev.preventDefault();
+        dropArea.classList.remove("dragover");
+    })
+);
+
+dropArea.addEventListener("drop", e => {
+    addFiles(e.dataTransfer.files);
+});
+
+dropArea.addEventListener("click", () => {
+    fileInput.click();
+});
+
+fileInput.addEventListener("change", () => {
+    addFiles(fileInput.files);
+});
 </script>
 
 </body>
